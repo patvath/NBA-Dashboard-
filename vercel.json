@@ -6,6 +6,6 @@
   ],
   "env": {
     "BALLDONTLIE_API": "https://api.balldontlie.io/v1",
-    "BALLDONTLIE_KEY": "@ball_dontlie_key"
+    "BALLDONTLIE_KEY": "7f4db7a9-c34e-478d-a799-fef77b9d1f78"
   }
 }
