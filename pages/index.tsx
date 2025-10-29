@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 
 export default function Home() {
   const [teams, setTeams] = useState([]);
@@ -19,7 +20,16 @@ export default function Home() {
       <ul>
         {teams.map((team: any) => (
           <li key={team.id}>
-            {team.full_name} ({team.abbreviation})
+            <Link
+              href={`/team/${team.id}`}
+              style={{
+                color: "#00b4d8",
+                textDecoration: "none",
+                fontWeight: "bold",
+              }}
+            >
+              {team.full_name} ({team.abbreviation})
+            </Link>
           </li>
         ))}
       </ul>
