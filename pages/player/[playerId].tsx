@@ -1,38 +1,29 @@
-import React, { useEffect, useState } from "react";
-import { useRouter } from "next/router";
+import type { NextApiRequest, NextApiResponse } from "next";
 
-export default function PlayerPage() {
-  const router = useRouter();
-  const { playerId } = router.query;
-  const [player, setPlayer] = useState<any>(null);
-  const [stats, setStats] = useState<any>(null);
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const { playerId } = req.query;
 
-  useEffect(() => {
-    if (!playerId) return;
-    async function fetchData() {
-      const res = await fetch(`/api/player/${playerId}`);
-      const data = await res.json();
-      setPlayer(data.player);
-      setStats(data.seasonAverages);
-    }
-    fetchData();
-  }, [playerId]);
+  try {
+    // Fetch player details
+    const playerRes = await fetch(`https://www.balldontlie.io/api/v1/players/${playerId}`);
+    if (!playerRes.ok) throw new Error(`Failed to fetch player: ${playerRes.status}`);
+    const player = await playerRes.json();
 
-  if (!player) return <p style={{ color: "#ddd" }}>Loading player data...</p>;
+    // Fetch season averages for the latest season (use 2024 as current season fallback)
+    const currentSeason = new Date().getFullYear() - 1; // ensures valid NBA year alignment
+    const statsRes = await fetch(
+      `https://www.balldontlie.io/api/v1/season_averages?season=${currentSeason}&player_ids[]=${playerId}`
+    );
+    const statsData = await statsRes.json();
+    const seasonAverages = statsData.data?.[0] || null;
 
-  return (
-    <div style={{ color: "#f5f5f5", background: "#111", minHeight: "100vh", padding: "2rem" }}>
-      <h1>{player.first_name} {player.last_name}</h1>
-      <p>Team: {player.team?.full_name}</p>
-      <p>Position: {player.position}</p>
-      {stats && (
-        <div>
-          <h3>Season Averages</h3>
-          <p>Points: {stats.pts}</p>
-          <p>Rebounds: {stats.reb}</p>
-          <p>Assists: {stats.ast}</p>
-        </div>
-      )}
-    </div>
-  );
+    // Construct final response
+    res.status(200).json({
+      player,
+      seasonAverages,
+    });
+  } catch (err: any) {
+    console.error("Error fetching player data:", err);
+    res.status(500).json({ error: "Failed to fetch player data" });
+  }
 }
