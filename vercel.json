@@ -1,11 +1,8 @@
 {
-  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
   "framework": "nextjs",
-  "builds": [
-    { "src": "package.json", "use": "@vercel/next" }
-  ],
   "env": {
-    "BALLDONTLIE_API": "https://api.balldontlie.io/v1",
-    "BALLDONTLIE_KEY": "7f4db7a9-c34e-478d-a799-fef77b9d1f78"
+    "NEXT_PUBLIC_BALLDONTLIE_KEY": "@next_public_balldontlie_key"
   }
 }
