@@ -3,8 +3,7 @@ import path from "path";
 import axios from "axios";
 
 const DATA_DIR = path.join(process.cwd(), "public/data");
-const API_BASE =
-  process.env.BALLDONTLIE_API || "https://api.balldontlie.io/v1";
+const API_BASE = process.env.BALLDONTLIE_API || "https://api.balldontlie.io/v1";
 const API_KEY = process.env.BALLDONTLIE_KEY;
 
 const api = axios.create({
@@ -14,8 +13,27 @@ const api = axios.create({
 
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
+// ---- Smart Request Wrapper ----
+async function safeRequest(url, params = {}, retries = 5) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await api.get(url, { params });
+    } catch (err) {
+      const status = err.response?.status;
+      if (status === 429) {
+        const wait = 2000 * attempt;
+        console.warn(`⚠️ Rate limit hit. Waiting ${wait / 1000}s before retry...`);
+        await sleep(wait);
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new Error("Too many retries — still rate limited.");
+}
+
 async function fetchTeams() {
-  const res = await api.get("/teams");
+  const res = await safeRequest("/teams");
   return res.data.data;
 }
 
@@ -27,7 +45,7 @@ async function fetchPlayers() {
   console.log("🔄 Fetching players from API...");
 
   while (hasMore) {
-    const res = await api.get("/players", { params: { page, per_page: 100 } });
+    const res = await safeRequest("/players", { page, per_page: 100 });
     const batch = res.data.data || [];
     if (batch.length === 0) break;
 
@@ -41,7 +59,7 @@ async function fetchPlayers() {
       batch.length === 100;
 
     page++;
-    await sleep(400);
+    await sleep(1000); // 1s delay per request to stay under rate limit
   }
 
   console.log(`✅ Retrieved ${players.length} total players.`);
