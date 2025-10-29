@@ -1,112 +1,206 @@
-import { useEffect, useState } from "react";
-import axios from "axios";
+import { useState, useEffect } from "react";
 import ProjectionCard from "../components/ProjectionCard";
 
 export default function Home() {
   const [teams, setTeams] = useState<any[]>([]);
   const [players, setPlayers] = useState<any[]>([]);
-  const [selectedTeam, setSelectedTeam] = useState<string>("");
-  const [selectedPlayer, setSelectedPlayer] = useState<string>("");
-  const [playerData, setPlayerData] = useState<any | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
+  const [selectedTeam, setSelectedTeam] = useState("");
+  const [selectedPlayer, setSelectedPlayer] = useState("");
+  const [playerStats, setPlayerStats] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const apiKey = process.env.NEXT_PUBLIC_BALLDONTLIE_KEY || "";
 
-  // Fetch NBA teams
+  // Fetch all teams on load
   useEffect(() => {
-    const fetchTeams = async () => {
+    async function fetchTeams() {
       try {
         console.log("Fetching NBA teams...");
-        const headers = apiKey ? { Authorization: apiKey } : {};
-        const res = await axios.get("https://api.balldontlie.io/v1/teams", { headers });
-        const validTeams = res.data.data.filter((t: any) =>
-          [
-            "ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DAL", "DEN", "DET", "GSW",
-            "HOU", "IND", "LAC", "LAL", "MEM", "MIA", "MIL", "MIN", "NOP", "NYK",
-            "OKC", "ORL", "PHI", "PHX", "POR", "SAC", "SAS", "TOR", "UTA", "WAS",
-          ].includes(t.abbreviation)
-        );
-        setTeams(validTeams);
-        console.log(`✅ Loaded ${validTeams.length} NBA teams.`);
-      } catch (err: any) {
-        console.error("Error fetching teams:", err.message);
-        setError("Failed to load NBA teams. Check API key or rate limits.");
+        const res = await fetch("https://api.balldontlie.io/v1/teams", {
+          headers: { Authorization: apiKey },
+        });
+        if (!res.ok) throw new Error(`Teams request failed: ${res.status}`);
+        const json = await res.json();
+        setTeams(json.data);
+        console.log(`✅ Loaded ${json.data.length} NBA teams.`);
+      } catch (e: any) {
+        console.error("❌ Error fetching teams:", e.message);
+        setError("Unable to fetch teams. Please check API key.");
       }
-    };
-    fetchTeams();
-  }, [apiKey]);
-
-  // Fetch players for team
-  const fetchPlayers = async (teamId: string) => {
-    try {
-      const headers = apiKey ? { Authorization: apiKey } : {};
-      console.log(`Fetching players for team ID: ${teamId}`);
-      const res = await axios.get("https://api.balldontlie.io/v1/players", {
-        params: { team_ids: [teamId], per_page: 100 },
-        headers,
-      });
-      setPlayers(res.data?.data || []);
-    } catch (err: any) {
-      console.error("Error fetching players:", err.message);
-      setPlayers([]);
     }
-  };
+    fetchTeams();
+  }, []);
 
-  // Fetch player stats (season averages or last 10 games)
-  const fetchPlayerStats = async (playerId: string) => {
-    setLoading(true);
-    setError("");
-    setPlayerData(null);
+  // Fetch players when a team is selected
+  useEffect(() => {
+    if (!selectedTeam) return;
 
-    try {
-      const headers = apiKey ? { Authorization: apiKey } : {};
-      console.log(`Fetching stats for player ID: ${playerId}`);
-
-      // Try current season averages
-      let res = await axios.get("https://api.balldontlie.io/v1/season_averages", {
-        params: { player_ids: [playerId] },
-        headers,
-      });
-
-      let data = res.data.data;
-
-      // Fallback: previous season averages
-      if (!data.length) {
-        console.log("No current season data, fetching previous season...");
-        const prevSeason = new Date().getFullYear() - 1;
-        res = await axios.get("https://api.balldontlie.io/v1/season_averages", {
-          params: { player_ids: [playerId], season: prevSeason },
-          headers,
-        });
-        data = res.data.data;
+    async function fetchPlayers() {
+      try {
+        setPlayers([]);
+        setPlayerStats(null);
+        setLoading(true);
+        const res = await fetch(
+          `https://api.balldontlie.io/v1/players?team_ids[]=${selectedTeam}&per_page=100`,
+          {
+            headers: { Authorization: apiKey },
+          }
+        );
+        const json = await res.json();
+        setPlayers(json.data);
+      } catch (e: any) {
+        console.error("❌ Error fetching players:", e.message);
+        setError("Unable to fetch players for this team.");
+      } finally {
+        setLoading(false);
       }
+    }
 
-      // Fallback: compute recent 10-game averages
-      if (!data.length) {
-        console.log("No season averages found, computing recent 10-game averages...");
-        const gamesRes = await axios.get("https://api.balldontlie.io/v1/stats", {
-          params: { player_ids: [playerId], per_page: 10 },
-          headers,
-        });
+    fetchPlayers();
+  }, [selectedTeam]);
 
-        const games = gamesRes.data.data;
-        if (games.length) {
-          const totals = games.reduce(
-            (acc: any, g: any) => {
-              acc.pts += g.pts;
-              acc.reb += g.reb;
-              acc.ast += g.ast;
-              acc.stl += g.stl;
-              acc.blk += g.blk;
-              return acc;
-            },
-            { pts: 0, reb: 0, ast: 0, stl: 0, blk: 0 }
+  // Fetch player stats when a player is selected
+  useEffect(() => {
+    if (!selectedPlayer) return;
+
+    async function fetchStats() {
+      setLoading(true);
+      setPlayerStats(null);
+      try {
+        console.log("Fetching player stats...");
+
+        // Try to get season averages
+        const seasonRes = await fetch(
+          `https://api.balldontlie.io/v1/season_averages?player_ids[]=${selectedPlayer}`,
+          { headers: { Authorization: apiKey } }
+        );
+
+        const seasonData = await seasonRes.json();
+        let stats = seasonData.data?.[0] || null;
+
+        // If no season averages found, try last 10 games
+        if (!stats) {
+          console.log("No season averages found, fetching last 10 games...");
+          const gamesRes = await fetch(
+            `https://api.balldontlie.io/v1/stats?player_ids[]=${selectedPlayer}&per_page=10`,
+            { headers: { Authorization: apiKey } }
           );
+          const gamesData = await gamesRes.json();
+          if (gamesData.data?.length) {
+            const avg = (key: string) =>
+              (
+                gamesData.data.reduce((acc: number, g: any) => acc + g[key], 0) /
+                gamesData.data.length
+              ).toFixed(1);
+            stats = {
+              pts: avg("pts"),
+              reb: avg("reb"),
+              ast: avg("ast"),
+              stl: avg("stl"),
+              blk: avg("blk"),
+              source: "recent_10_games",
+            };
+          }
+        } else {
+          stats.source = "season_averages";
+        }
 
-          const avg = {
-            pts: (totals.pts / games.length).toFixed(1),
-            reb: (totals.reb / games.length).toFixed(1),
-            ast: (totals.ast / games.length).toFixed(1),
-            stl: (totals.stl / games.length).toFixed(1),
-            blk: (totals.blk / games
+        setPlayerStats(stats);
+      } catch (e: any) {
+        console.error("❌ Error fetching player stats:", e.message);
+        setError("Unable to fetch player stats.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchStats();
+  }, [selectedPlayer]);
+
+  return (
+    <div
+      style={{
+        fontFamily: "Poppins, sans-serif",
+        backgroundColor: "#0B132B",
+        color: "#F5C518",
+        minHeight: "100vh",
+        padding: "30px",
+      }}
+    >
+      <h1 style={{ fontSize: "2rem", textAlign: "center", marginBottom: "20px" }}>
+        🏀 NBA Dashboard
+      </h1>
+
+      {error && (
+        <div
+          style={{
+            backgroundColor: "#E63946",
+            padding: "10px 20px",
+            borderRadius: "8px",
+            textAlign: "center",
+            marginBottom: "15px",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      <div style={{ textAlign: "center", marginBottom: "30px" }}>
+        <div style={{ marginBottom: "15px" }}>
+          <label style={{ marginRight: "10px" }}>Team:</label>
+          <select
+            value={selectedTeam}
+            onChange={(e) => setSelectedTeam(e.target.value)}
+            style={{
+              backgroundColor: "#1C2541",
+              color: "white",
+              borderRadius: "8px",
+              padding: "8px",
+              border: "none",
+            }}
+          >
+            <option value="">-- Choose a team --</option>
+            {teams.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.full_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {players.length > 0 && (
+          <div>
+            <label style={{ marginRight: "10px" }}>Player:</label>
+            <select
+              value={selectedPlayer}
+              onChange={(e) => setSelectedPlayer(e.target.value)}
+              style={{
+                backgroundColor: "#1C2541",
+                color: "white",
+                borderRadius: "8px",
+                padding: "8px",
+                border: "none",
+              }}
+            >
+              <option value="">-- Choose a player --</option>
+              {players.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.first_name} {p.last_name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      <div style={{ textAlign: "center" }}>
+        {loading && <p>Loading player stats...</p>}
+        {!loading && selectedPlayer && !playerStats && (
+          <p>No data found for this player.</p>
+        )}
+        {playerStats && <ProjectionCard data={playerStats} />}
+      </div>
+    </div>
+  );
+}
