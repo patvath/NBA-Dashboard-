@@ -11,46 +11,60 @@ export default function Home() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
 
-  const apiKey = process.env.NEXT_PUBLIC_BALLDONTLIE_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_BALLDONTLIE_KEY || "";
 
-  // Fetch NBA teams
-  useEffect(() => {
-    const fetchTeams = async () => {
-      try {
-        const res = await axios.get("https://api.balldontlie.io/v1/teams", {
-          headers: apiKey ? { Authorization: apiKey } : undefined,
-        });
-        const validTeams = res.data.data.filter((t: any) =>
-          [
-            "ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DAL", "DEN", "DET", "GSW",
-            "HOU", "IND", "LAC", "LAL", "MEM", "MIA", "MIL", "MIN", "NOP", "NYK",
-            "OKC", "ORL", "PHI", "PHX", "POR", "SAC", "SAS", "TOR", "UTA", "WAS",
-          ].includes(t.abbreviation)
-        );
-        setTeams(validTeams);
-      } catch (err) {
-        console.error("Error fetching teams:", err);
-        setError("Could not load teams.");
-      }
-    };
-    fetchTeams();
-  }, [apiKey]);
-
-  // Fetch players for team
-  const fetchPlayers = async (teamId: string) => {
+  // 🏀 Fetch NBA teams (with fallback + retry)
+  const fetchTeams = async (attempt = 1) => {
     try {
+      console.log(`Fetching NBA teams (attempt ${attempt})...`);
+      const headers = apiKey ? { Authorization: apiKey } : {};
+      const res = await axios.get("https://api.balldontlie.io/v1/teams", { headers });
+      const data = res.data?.data || [];
+
+      if (!data.length && attempt < 3) {
+        console.warn("No teams found, retrying...");
+        await new Promise((r) => setTimeout(r, 1500));
+        return fetchTeams(attempt + 1);
+      }
+
+      const validTeams = data.filter((t: any) =>
+        [
+          "ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DAL", "DEN", "DET", "GSW",
+          "HOU", "IND", "LAC", "LAL", "MEM", "MIA", "MIL", "MIN", "NOP", "NYK",
+          "OKC", "ORL", "PHI", "PHX", "POR", "SAC", "SAS", "TOR", "UTA", "WAS",
+        ].includes(t.abbreviation)
+      );
+      setTeams(validTeams);
+      console.log(`Loaded ${validTeams.length} NBA teams.`);
+    } catch (err: any) {
+      console.error("Error fetching teams:", err.message);
+      setError("Failed to load NBA teams. Check your API key or rate limits.");
+    }
+  };
+
+  useEffect(() => {
+    fetchTeams();
+  }, []);
+
+  // 🧍 Fetch players for selected team
+  const fetchPlayers = async (teamId: string) => {
+    setPlayers([]);
+    try {
+      console.log(`Fetching players for team ID: ${teamId}`);
+      const headers = apiKey ? { Authorization: apiKey } : {};
       const res = await axios.get("https://api.balldontlie.io/v1/players", {
         params: { team_ids: [teamId], per_page: 100 },
-        headers: apiKey ? { Authorization: apiKey } : undefined,
+        headers,
       });
-      setPlayers(res.data.data);
-    } catch (err) {
-      console.error("Error fetching players:", err);
+      setPlayers(res.data?.data || []);
+      console.log(`Loaded ${res.data?.data?.length} players.`);
+    } catch (err: any) {
+      console.error("Error fetching players:", err.message);
       setPlayers([]);
     }
   };
 
-  // Fetch player stats (multi-source fallback)
+  // 📊 Fetch player stats (multi-source fallback)
   const fetchPlayerStats = async (playerId: string) => {
     setLoading(true);
     setError("");
@@ -58,55 +72,54 @@ export default function Home() {
     console.log(`Fetching stats for player ID: ${playerId}`);
 
     try {
-      // Try current season averages
+      const headers = apiKey ? { Authorization: apiKey } : {};
+
+      // Try current season
       let res = await axios.get("https://api.balldontlie.io/v1/season_averages", {
         params: { player_ids: [playerId] },
-        headers: apiKey ? { Authorization: apiKey } : undefined,
+        headers,
       });
 
-      // Fallback to previous season if empty
       if (!res.data.data.length) {
-        console.log("No current season data found, fetching previous season...");
-        const lastSeason = new Date().getFullYear() - 1;
+        console.log("No current season stats, checking previous season...");
+        const prevSeason = new Date().getFullYear() - 1;
         res = await axios.get("https://api.balldontlie.io/v1/season_averages", {
-          params: { player_ids: [playerId], season: lastSeason },
-          headers: apiKey ? { Authorization: apiKey } : undefined,
+          params: { player_ids: [playerId], season: prevSeason },
+          headers,
         });
       }
 
-      // Fallback to latest game stats if still empty
       if (!res.data.data.length) {
-        console.log("No season averages found. Fetching latest game performance...");
-        const gamesRes = await axios.get("https://api.balldontlie.io/v1/stats", {
+        console.log("No averages found, checking latest game...");
+        const gRes = await axios.get("https://api.balldontlie.io/v1/stats", {
           params: { player_ids: [playerId], per_page: 1 },
-          headers: apiKey ? { Authorization: apiKey } : undefined,
+          headers,
         });
-
-        if (gamesRes.data.data.length) {
-          const g = gamesRes.data.data[0];
+        if (gRes.data.data.length) {
+          const g = gRes.data.data[0];
           res.data.data = [
             {
               pts: g.pts,
               reb: g.reb,
               ast: g.ast,
-              blk: g.blk,
               stl: g.stl,
+              blk: g.blk,
               fg_pct: g.fg_pct,
-              game_date: g.game.date,
+              date: g.game.date,
             },
           ];
         }
       }
 
-      if (res.data.data.length > 0) {
-        console.log("Player stats found:", res.data.data[0]);
+      if (res.data.data.length) {
         setPlayerData(res.data.data[0]);
+        console.log("Player stats found:", res.data.data[0]);
       } else {
-        setError("No stats available for this player.");
+        setError("No stats found for this player.");
       }
-    } catch (err) {
-      console.error("Error fetching player stats:", err);
-      setError("Failed to fetch player stats.");
+    } catch (err: any) {
+      console.error("Error fetching player stats:", err.message);
+      setError("Failed to fetch player stats. Try again later.");
     } finally {
       setLoading(false);
     }
@@ -126,7 +139,7 @@ export default function Home() {
         🏀 NBA Dashboard
       </h1>
 
-      {/* Team Selection */}
+      {/* Team Dropdown */}
       <div style={{ marginBottom: "20px" }}>
         <label>Team:</label>
         <select
@@ -145,15 +158,19 @@ export default function Home() {
           }}
         >
           <option value="">-- Choose a team --</option>
-          {teams.map((team) => (
-            <option key={team.id} value={team.id}>
-              {team.full_name}
-            </option>
-          ))}
+          {teams.length > 0 ? (
+            teams.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.full_name}
+              </option>
+            ))
+          ) : (
+            <option>Loading teams...</option>
+          )}
         </select>
       </div>
 
-      {/* Player Selection */}
+      {/* Player Dropdown */}
       {selectedTeam && (
         <div style={{ marginBottom: "20px" }}>
           <label>Player:</label>
@@ -173,16 +190,19 @@ export default function Home() {
             }}
           >
             <option value="">Select Player</option>
-            {players.map((player) => (
-              <option key={player.id} value={player.id}>
-                {player.first_name} {player.last_name}
-              </option>
-            ))}
+            {players.length > 0 ? (
+              players.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.first_name} {p.last_name}
+                </option>
+              ))
+            ) : (
+              <option>Loading players...</option>
+            )}
           </select>
         </div>
       )}
 
-      {/* Feedback */}
       {loading && <p>Loading player stats...</p>}
       {error && <p style={{ color: "tomato" }}>{error}</p>}
       {playerData && (
