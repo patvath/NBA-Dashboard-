@@ -3,7 +3,7 @@ import path from "path";
 import axios from "axios";
 
 const DATA_DIR = path.join(process.cwd(), "public/data");
-const API_BASE = process.env.BALLDONTLIE_API || "https://www.balldontlie.io/api/v1";
+const API_BASE = process.env.BALLDONTLIE_API || "https://api.balldontlie.io/v1";
 
 async function fetchTeams() {
   const res = await axios.get(`${API_BASE}/teams`);
@@ -13,19 +13,21 @@ async function fetchTeams() {
 async function fetchPlayers() {
   let page = 1;
   let players = [];
+  console.log("🔄 Fetching players from API...");
   while (true) {
     const res = await axios.get(`${API_BASE}/players`, { params: { page, per_page: 100 } });
     players = players.concat(res.data.data);
     if (!res.data.meta.next_page) break;
     page++;
   }
+  console.log(`✅ Retrieved ${players.length} players.`);
   return players;
 }
 
 async function run() {
   console.log("🏀 Fetching NBA data...");
 
-  // Ensure output directory
+  // Ensure output directory exists
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
   const teams = await fetchTeams();
