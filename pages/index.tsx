@@ -9,16 +9,18 @@ export default function Home() {
   const [selectedPlayer, setSelectedPlayer] = useState<string>("");
   const [playerData, setPlayerData] = useState<any | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const apiKey = process.env.NEXT_PUBLIC_BALLDONTLIE_KEY;
 
-  // Fetch only active NBA teams
+  // Fetch NBA teams
   useEffect(() => {
     const fetchTeams = async () => {
       try {
+        console.log("Fetching teams with API key:", apiKey ? "✅ Key found" : "❌ Missing key");
         const res = await axios.get("https://api.balldontlie.io/v1/teams", {
-          headers: {
-            Authorization: process.env.NEXT_PUBLIC_BALLDONTLIE_KEY || "",
-          },
+          headers: apiKey ? { Authorization: apiKey } : undefined,
         });
+        console.log("Teams response:", res.data);
+
         const validTeams = res.data.data.filter((t: any) =>
           [
             "ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DAL", "DEN", "DET", "GSW",
@@ -26,50 +28,40 @@ export default function Home() {
             "OKC", "ORL", "PHI", "PHX", "POR", "SAC", "SAS", "TOR", "UTA", "WAS",
           ].includes(t.abbreviation)
         );
+
         setTeams(validTeams);
-      } catch (error) {
-        console.error("Error fetching teams:", error);
+      } catch (error: any) {
+        console.error("Error fetching teams:", error.response?.data || error.message);
       }
     };
 
     fetchTeams();
-  }, []);
+  }, [apiKey]);
 
-  // Fetch players for selected team
+  // Fetch players on selected team
   const fetchPlayers = async (teamId: string) => {
     try {
       const res = await axios.get("https://api.balldontlie.io/v1/players", {
         params: { team_ids: [teamId], per_page: 100 },
-        headers: {
-          Authorization: process.env.NEXT_PUBLIC_BALLDONTLIE_KEY || "",
-        },
+        headers: apiKey ? { Authorization: apiKey } : undefined,
       });
-
-      // Filter out retired players or missing team associations
-      const activePlayers = res.data.data.filter(
-        (p: any) => p.team && p.team.id === parseInt(teamId)
-      );
-
-      setPlayers(activePlayers);
+      setPlayers(res.data.data);
     } catch (error) {
       console.error("Error fetching players:", error);
     }
   };
 
-  // Fetch selected player’s live data
+  // Fetch selected player’s data
   const fetchPlayerStats = async (playerId: string) => {
     setLoading(true);
     try {
-      const res = await axios.get("https://api.balldontlie.io/v1/stats", {
-        params: { player_ids: [playerId], per_page: 1 },
-        headers: {
-          Authorization: process.env.NEXT_PUBLIC_BALLDONTLIE_KEY || "",
-        },
+      const res = await axios.get("https://api.balldontlie.io/v1/season_averages", {
+        params: { player_ids: [playerId] },
+        headers: apiKey ? { Authorization: apiKey } : undefined,
       });
 
       if (res.data.data && res.data.data.length > 0) {
-        const playerStats = res.data.data[0];
-        setPlayerData(playerStats);
+        setPlayerData(res.data.data[0]);
       } else {
         setPlayerData(null);
       }
@@ -79,59 +71,35 @@ export default function Home() {
     setLoading(false);
   };
 
-  // Handle team selection
-  const handleTeamChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const teamId = e.target.value;
-    setSelectedTeam(teamId);
-    setPlayers([]);
-    setSelectedPlayer("");
-    setPlayerData(null);
-    if (teamId) fetchPlayers(teamId);
-  };
-
-  // Handle player selection
-  const handlePlayerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const playerId = e.target.value;
-    setSelectedPlayer(playerId);
-    if (playerId) fetchPlayerStats(playerId);
-  };
-
   return (
-    <div
-      style={{
-        backgroundColor: "#0A1128",
-        color: "#F5C518",
-        minHeight: "100vh",
-        padding: "40px",
-        fontFamily: "Inter, sans-serif",
-      }}
-    >
+    <div style={{
+      backgroundColor: "#0A1128",
+      color: "#F5C518",
+      minHeight: "100vh",
+      padding: "40px",
+      fontFamily: "Inter, sans-serif",
+    }}>
       <h1 style={{ fontSize: "2rem", fontWeight: "bold", marginBottom: "20px" }}>
         🏀 NBA Dashboard
       </h1>
 
-      <p style={{ marginBottom: "20px", color: "#CCCCCC" }}>
-        Select a team, then a player to view live stats.
-      </p>
-
-      {/* Team Selector */}
       <div style={{ marginBottom: "20px" }}>
-        <label htmlFor="team-select" style={{ marginRight: "10px" }}>
-          Team:
-        </label>
+        <label>Team:</label>
         <select
-          id="team-select"
+          onChange={(e) => {
+            setSelectedTeam(e.target.value);
+            fetchPlayers(e.target.value);
+          }}
           value={selectedTeam}
-          onChange={handleTeamChange}
           style={{
             padding: "10px",
-            borderRadius: "8px",
             backgroundColor: "#141A33",
             color: "#F5C518",
             border: "1px solid #F5C518",
+            borderRadius: "8px",
           }}
         >
-          <option value="">Select Team</option>
+          <option value="">-- Choose a team --</option>
           {teams.map((team) => (
             <option key={team.id} value={team.id}>
               {team.full_name}
@@ -140,22 +108,21 @@ export default function Home() {
         </select>
       </div>
 
-      {/* Player Selector */}
       {selectedTeam && (
         <div style={{ marginBottom: "20px" }}>
-          <label htmlFor="player-select" style={{ marginRight: "10px" }}>
-            Player:
-          </label>
+          <label>Player:</label>
           <select
-            id="player-select"
+            onChange={(e) => {
+              setSelectedPlayer(e.target.value);
+              fetchPlayerStats(e.target.value);
+            }}
             value={selectedPlayer}
-            onChange={handlePlayerChange}
             style={{
               padding: "10px",
-              borderRadius: "8px",
               backgroundColor: "#141A33",
               color: "#F5C518",
               border: "1px solid #F5C518",
+              borderRadius: "8px",
             }}
           >
             <option value="">Select Player</option>
@@ -168,11 +135,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Loading State */}
       {loading && <p>Loading player stats...</p>}
-
-      {/* Player Data Card */}
-      {!loading && playerData && <ProjectionCard data={playerData} />}
+      {playerData && <ProjectionCard data={playerData} />}
     </div>
   );
 }
