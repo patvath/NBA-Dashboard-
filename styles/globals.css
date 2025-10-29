@@ -1,1 +1,9 @@
-/* global styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  background-color: #0a1124;
+  color: white;
+  font-family: 'Inter', sans-serif;
+}/* global styles */
