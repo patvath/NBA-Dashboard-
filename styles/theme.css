@@ -1,1 +1,32 @@
-/* theme styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Midnight Gold Theme */
+body {
+  background-color: #0A0F24;
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+}
+
+.text-gold-400 {
+  color: #FFD700;
+}
+
+.bg-gold-500 {
+  background-color: #FFD700;
+}
+
+.border-gold-500 {
+  border-color: #FFD700;
+}
+
+/* Scrollbar and hover polish */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #f0c14b;
+  border-radius: 10px;
+}/* theme styles */
