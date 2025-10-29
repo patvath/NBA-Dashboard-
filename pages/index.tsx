@@ -1,73 +1,30 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import ProjectionCard from "../components/ProjectionCard";
+import Sidebar from "../components/Sidebar";
 
-// 🎨 NBA Dashboard with Theming and Fixed Player Fetch
-export default function Dashboard() {
-  const [teams, setTeams] = useState<any[]>([]);
-  const [players, setPlayers] = useState<any[]>([]);
-  const [selectedTeam, setSelectedTeam] = useState<string>("");
-  const [selectedPlayer, setSelectedPlayer] = useState<string>("");
-  const [playerStats, setPlayerStats] = useState<any>(null);
-  const [loadingPlayers, setLoadingPlayers] = useState(false);
-  const [loadingStats, setLoadingStats] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export default function Home() {
+  const [projections, setProjections] = useState([]);
 
-  // Fetch active NBA teams
   useEffect(() => {
-    async function fetchTeams() {
-      try {
-        const res = await fetch("/data/teams.json");
-        const data = await res.json();
-
-        const activeTeams = data.filter((t: any) =>
-          [
-            "Atlanta Hawks", "Boston Celtics", "Brooklyn Nets", "Charlotte Hornets",
-            "Chicago Bulls", "Cleveland Cavaliers", "Dallas Mavericks", "Denver Nuggets",
-            "Detroit Pistons", "Golden State Warriors", "Houston Rockets", "Indiana Pacers",
-            "LA Clippers", "Los Angeles Lakers", "Memphis Grizzlies", "Miami Heat",
-            "Milwaukee Bucks", "Minnesota Timberwolves", "New Orleans Pelicans",
-            "New York Knicks", "Oklahoma City Thunder", "Orlando Magic", "Philadelphia 76ers",
-            "Phoenix Suns", "Portland Trail Blazers", "Sacramento Kings", "San Antonio Spurs",
-            "Toronto Raptors", "Utah Jazz", "Washington Wizards"
-          ].includes(t.full_name)
-        );
-        setTeams(activeTeams);
-      } catch (err) {
-        console.error("Failed to load teams", err);
-      }
-    }
-    fetchTeams();
+    fetch("/api/projection/top10")
+      .then((r) => r.json())
+      .then(setProjections)
+      .catch(console.error);
   }, []);
 
-  // Fetch players for selected team
-  useEffect(() => {
-    if (!selectedTeam) return;
-    async function fetchPlayers() {
-      setLoadingPlayers(true);
-      setError(null);
-      setPlayers([]);
-      try {
-        const res = await fetch(`/api/team/${selectedTeam}`);
-        const data = await res.json();
-        if (!Array.isArray(data) || data.length === 0) {
-          setError("No active players found for this team.");
-          return;
-        }
-        const active = data.filter((p: any) => p.position && p.first_name && p.last_name);
-        setPlayers(active);
-      } catch (err) {
-        setError("Failed to load players. Please try again.");
-      } finally {
-        setLoadingPlayers(false);
-      }
-    }
-    fetchPlayers();
-  }, [selectedTeam]);
-
-  // Fetch player stats
-  useEffect(() => {
-    if (!selectedPlayer) return;
-    async function fetchStats() {
-      setLoadingStats(true);
-      try {
-        const res = await fetch(`/api/player/${selectedPlayer}`);
-        const data = await res.json
+  return (
+    <div className="flex min-h-screen bg-[#0a1124] text-white">
+      <Sidebar />
+      <main className="flex-1 p-8">
+        <h1 className="text-3xl font-bold text-[#f0c14b] mb-6">
+          🏀 Top 10 Projected Players
+        </h1>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {projections.map((p) => (
+            <ProjectionCard key={p.player.id} data={p} />
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+}
