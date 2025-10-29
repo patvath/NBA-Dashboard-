@@ -2,7 +2,6 @@
   "name": "nba-dashboard",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,16 +9,32 @@
     "fetch:data": "node scripts/fetch_data.js"
   },
   "dependencies": {
+    "@types/node": "20.4.2",
+    "@types/react": "18.2.14",
+    "@types/react-dom": "18.2.7",
+    "autoprefixer": "10.4.14",
     "axios": "^1.7.3",
-    "cheerio": "^1.0.0-rc.12",
+    "framer-motion": "^11.2.6",
+    "@types/framer-motion": "^11.2.0",
     "next": "14.2.0",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "styled-components": "^6.1.0"
+    "postcss": "8.4.24",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "tailwindcss": "3.3.2"
   },
   "devDependencies": {
-    "@types/node": "^20.14.2",
-    "@types/react": "^18.3.5",
-    "typescript": "^5.4.5"
-  }
+    "typescript": "5.1.6",
+    "eslint": "8.44.0",
+    "eslint-config-next": "14.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT",
+  "description": "A live, automated NBA Dashboard built with Next.js, TypeScript, Tailwind, and Framer Motion. Displays daily updated player stats, projections, and betting insights.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/patvath/NBA-Dashboard-.git"
+  },
+  "author": "Pat Vath"
 }
