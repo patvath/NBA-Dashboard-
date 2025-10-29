@@ -1,19 +1,43 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { motion } from "framer-motion";
+
 export default function Sidebar() {
-  const items = ["Player Performance", "Projections", "Favorites"];
+  const router = useRouter();
+
+  const links = [
+    { name: "🏠 Home", href: "/" },
+    { name: "📊 Player Performance", href: "/player-performance" },
+    { name: "⭐ Favorites", href: "/favorites" },
+  ];
+
   return (
-    <aside className="w-56 bg-[#0d1530] border-r border-[#f0c14b]/30 p-4">
-      <h1 className="text-xl font-bold mb-6 text-[#f0c14b]">NBA Dashboard</h1>
-      <nav className="flex flex-col gap-4">
-        {items.map((i) => (
-          <a
-            key={i}
-            href={`/${i.toLowerCase().replace(" ", "")}`}
-            className="text-sm hover:text-[#f0c14b] transition"
-          >
-            {i}
-          </a>
+    <motion.aside
+      initial={{ x: -200, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      transition={{ duration: 0.4 }}
+      className="fixed top-0 left-0 h-full w-60 bg-[#0D1228] border-r border-gold-500 p-5 text-gray-200"
+    >
+      <h1 className="text-2xl font-bold text-gold-400 mb-6">🏀 NBA Dashboard</h1>
+
+      <ul className="space-y-4">
+        {links.map((link) => (
+          <li key={link.href}>
+            <Link
+              href={link.href}
+              className={`block p-2 rounded-md transition ${
+                router.pathname === link.href
+                  ? "bg-gold-500 text-black font-semibold"
+                  : "hover:bg-gold-400/20"
+              }`}
+            >
+              {link.name}
+            </Link>
+          </li>
         ))}
-      </nav>
-    </aside>
+      </ul>
+    </motion.aside>
   );
 }
