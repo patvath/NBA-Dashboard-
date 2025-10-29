@@ -20,15 +20,24 @@ async function fetchTeams() {
 
 async function fetchPlayers() {
   let page = 1;
+  let totalPages = 1;
   let players = [];
+
   console.log("🔄 Fetching players from API...");
-  while (true) {
+  do {
     const res = await api.get("/players", { params: { page, per_page: 100 } });
-    players = players.concat(res.data.data);
-    if (!res.data.meta.next_page) break;
+    const batch = res.data.data;
+    players = players.concat(batch);
+
+    // Detect pagination structure
+    totalPages = res.data.meta?.total_pages || totalPages;
+    console.log(`📄 Page ${page}/${totalPages} retrieved (${batch.length} players)`);
+
+    if (!res.data.meta?.next_page && page >= totalPages) break;
     page++;
-  }
-  console.log(`✅ Retrieved ${players.length} players.`);
+  } while (true);
+
+  console.log(`✅ Retrieved ${players.length} total players.`);
   return players;
 }
 
@@ -56,6 +65,7 @@ async function run() {
   };
 
   fs.writeFileSync(path.join(DATA_DIR, "projections.json"), JSON.stringify(projections, null, 2));
+
   console.log("✅ Data saved in /public/data/");
 }
 
