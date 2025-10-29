@@ -2,12 +2,19 @@ name: 🏀 Daily NBA Dashboard Update
 
 on:
   schedule:
-    - cron: "0 14 * * *"   # 9 AM Eastern (14:00 UTC)
+    # Runs every day at 9 AM Eastern (14:00 UTC)
+    - cron: "0 14 * * *"
   workflow_dispatch:
+
+permissions:
+  contents: write        # ✅ allows bot to push commits
+  actions: read
+  checks: read
 
 jobs:
   update-data:
     runs-on: ubuntu-latest
+
     steps:
       - name: 🧩 Checkout repository
         uses: actions/checkout@v4
@@ -20,16 +27,20 @@ jobs:
       - name: 📦 Install dependencies
         run: npm install
 
+      - name: 🗂️ Ensure data directory exists
+        run: mkdir -p public/data
+
       - name: 🔄 Fetch latest NBA data
         env:
           BALLDONTLIE_API: ${{ secrets.BALLDONTLIE_API }}
         run: npm run fetch:data
 
-      - name: 💾 Commit updated JSON data
+      - name: 💾 Commit and push updated JSON data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "NBA Dashboard Bot"
           git config user.email "bot@pulsr.co.uk"
-          git add public/data/*.json || echo "No data changes"
-          git commit -m "📊 Automated daily data update $(date)" || echo "Nothing to commit"
-          git push
-        continue-on-error: true
+          git add public/data/*.json || echo "No data files to add"
+          git commit -m "📊 Automated daily data update $(date)" || echo "No changes to commit"
+          git push origin main || echo "Push skipped (no changes)"
