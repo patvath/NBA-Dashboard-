@@ -13,14 +13,13 @@ export default function Home() {
 
   const apiKey = process.env.NEXT_PUBLIC_BALLDONTLIE_KEY;
 
-  // Fetch all teams
+  // Fetch NBA teams
   useEffect(() => {
     const fetchTeams = async () => {
       try {
         const res = await axios.get("https://api.balldontlie.io/v1/teams", {
           headers: apiKey ? { Authorization: apiKey } : undefined,
         });
-
         const validTeams = res.data.data.filter((t: any) =>
           [
             "ATL", "BOS", "BKN", "CHA", "CHI", "CLE", "DAL", "DEN", "DET", "GSW",
@@ -28,18 +27,16 @@ export default function Home() {
             "OKC", "ORL", "PHI", "PHX", "POR", "SAC", "SAS", "TOR", "UTA", "WAS",
           ].includes(t.abbreviation)
         );
-
         setTeams(validTeams);
-      } catch (err: any) {
-        setError("Failed to load teams. Check API key.");
-        console.error(err);
+      } catch (err) {
+        console.error("Error fetching teams:", err);
+        setError("Could not load teams.");
       }
     };
-
     fetchTeams();
   }, [apiKey]);
 
-  // Fetch players for selected team
+  // Fetch players for team
   const fetchPlayers = async (teamId: string) => {
     try {
       const res = await axios.get("https://api.balldontlie.io/v1/players", {
@@ -48,25 +45,28 @@ export default function Home() {
       });
       setPlayers(res.data.data);
     } catch (err) {
-      console.error(err);
+      console.error("Error fetching players:", err);
       setPlayers([]);
     }
   };
 
-  // Fetch player stats (with fallback to last season)
+  // Fetch player stats (multi-source fallback)
   const fetchPlayerStats = async (playerId: string) => {
     setLoading(true);
     setError("");
     setPlayerData(null);
+    console.log(`Fetching stats for player ID: ${playerId}`);
 
     try {
+      // Try current season averages
       let res = await axios.get("https://api.balldontlie.io/v1/season_averages", {
         params: { player_ids: [playerId] },
         headers: apiKey ? { Authorization: apiKey } : undefined,
       });
 
+      // Fallback to previous season if empty
       if (!res.data.data.length) {
-        console.log("No data for current season, fetching previous season...");
+        console.log("No current season data found, fetching previous season...");
         const lastSeason = new Date().getFullYear() - 1;
         res = await axios.get("https://api.balldontlie.io/v1/season_averages", {
           params: { player_ids: [playerId], season: lastSeason },
@@ -74,32 +74,59 @@ export default function Home() {
         });
       }
 
+      // Fallback to latest game stats if still empty
+      if (!res.data.data.length) {
+        console.log("No season averages found. Fetching latest game performance...");
+        const gamesRes = await axios.get("https://api.balldontlie.io/v1/stats", {
+          params: { player_ids: [playerId], per_page: 1 },
+          headers: apiKey ? { Authorization: apiKey } : undefined,
+        });
+
+        if (gamesRes.data.data.length) {
+          const g = gamesRes.data.data[0];
+          res.data.data = [
+            {
+              pts: g.pts,
+              reb: g.reb,
+              ast: g.ast,
+              blk: g.blk,
+              stl: g.stl,
+              fg_pct: g.fg_pct,
+              game_date: g.game.date,
+            },
+          ];
+        }
+      }
+
       if (res.data.data.length > 0) {
+        console.log("Player stats found:", res.data.data[0]);
         setPlayerData(res.data.data[0]);
       } else {
-        setError("No stats found for this player.");
+        setError("No stats available for this player.");
       }
     } catch (err) {
-      console.error(err);
-      setError("Error fetching player stats.");
+      console.error("Error fetching player stats:", err);
+      setError("Failed to fetch player stats.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{
-      backgroundColor: "#0A1128",
-      color: "#F5C518",
-      minHeight: "100vh",
-      padding: "40px",
-      fontFamily: "Inter, sans-serif",
-    }}>
+    <div
+      style={{
+        backgroundColor: "#0A1128",
+        color: "#F5C518",
+        minHeight: "100vh",
+        padding: "40px",
+        fontFamily: "Inter, sans-serif",
+      }}
+    >
       <h1 style={{ fontSize: "2.2rem", fontWeight: "bold", marginBottom: "20px" }}>
         🏀 NBA Dashboard
       </h1>
 
-      {/* Team Dropdown */}
+      {/* Team Selection */}
       <div style={{ marginBottom: "20px" }}>
         <label>Team:</label>
         <select
@@ -126,7 +153,7 @@ export default function Home() {
         </select>
       </div>
 
-      {/* Player Dropdown */}
+      {/* Player Selection */}
       {selectedTeam && (
         <div style={{ marginBottom: "20px" }}>
           <label>Player:</label>
@@ -155,6 +182,14 @@ export default function Home() {
         </div>
       )}
 
-      {/* Loading / Error / Data */}
+      {/* Feedback */}
       {loading && <p>Loading player stats...</p>}
-      {error
+      {error && <p style={{ color: "tomato" }}>{error}</p>}
+      {playerData && (
+        <div style={{ marginTop: "30px" }}>
+          <ProjectionCard data={playerData} />
+        </div>
+      )}
+    </div>
+  );
+}
