@@ -6,7 +6,8 @@ export default function Dashboard() {
   const [selectedTeam, setSelectedTeam] = useState<string>("");
   const [selectedPlayer, setSelectedPlayer] = useState<string>("");
   const [playerStats, setPlayerStats] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingPlayers, setLoadingPlayers] = useState(false);
+  const [loadingStats, setLoadingStats] = useState(false);
 
   // Fetch active NBA teams only
   useEffect(() => {
@@ -14,7 +15,7 @@ export default function Dashboard() {
       const res = await fetch("/data/teams.json");
       const data = await res.json();
 
-      // Filter out defunct/legacy teams (no city or old franchises)
+      // Only current NBA teams
       const activeTeams = data.filter((t: any) =>
         [
           "Atlanta Hawks",
@@ -54,45 +55,48 @@ export default function Dashboard() {
     fetchTeams();
   }, []);
 
-  // When team selected → fetch active players
+  // When team selected → fetch that team's players
   useEffect(() => {
     if (!selectedTeam) return;
     async function fetchPlayers() {
-      setLoading(true);
-      const res = await fetch(`/api/team/${selectedTeam}`);
-      const data = await res.json();
-
-      // Filter out retired players (those with no season averages)
-      const currentPlayers: any[] = [];
-      for (const player of data) {
-        try {
-          const avgRes = await fetch(
-            `/api/player/${player.id}`
-          );
-          const avgData = await avgRes.json();
-          if (avgData.seasonAverages && avgData.seasonAverages.pts > 0) {
-            currentPlayers.push(player);
-          }
-        } catch {}
-      }
-
-      setPlayers(currentPlayers);
+      setLoadingPlayers(true);
+      setPlayers([]);
       setSelectedPlayer("");
       setPlayerStats(null);
-      setLoading(false);
+
+      try {
+        const res = await fetch(`/api/team/${selectedTeam}`);
+        const data = await res.json();
+
+        // Filter out non-active players (no position, no team)
+        const filtered = data.filter(
+          (p: any) => p.position && p.team && p.team.full_name
+        );
+        setPlayers(filtered);
+      } catch (err) {
+        console.error("Failed to load players:", err);
+      } finally {
+        setLoadingPlayers(false);
+      }
     }
     fetchPlayers();
   }, [selectedTeam]);
 
-  // When player selected → show data
+  // When player selected → fetch stats
   useEffect(() => {
     if (!selectedPlayer) return;
     async function fetchStats() {
-      setLoading(true);
-      const res = await fetch(`/api/player/${selectedPlayer}`);
-      const data = await res.json();
-      setPlayerStats(data);
-      setLoading(false);
+      setLoadingStats(true);
+      setPlayerStats(null);
+      try {
+        const res = await fetch(`/api/player/${selectedPlayer}`);
+        const data = await res.json();
+        setPlayerStats(data);
+      } catch (err) {
+        console.error("Failed to load stats:", err);
+      } finally {
+        setLoadingStats(false);
+      }
     }
     fetchStats();
   }, [selectedPlayer]);
@@ -158,11 +162,12 @@ export default function Dashboard() {
               </option>
             ))}
           </select>
+          {loadingPlayers && <p>Loading players...</p>}
         </>
       )}
 
       {/* PLAYER OUTPUT */}
-      {loading && <p>Loading data...</p>}
+      {loadingStats && <p>Loading player stats...</p>}
       {playerStats && playerStats.player && (
         <div style={{ marginTop: "1.5rem" }}>
           <h2>
@@ -173,11 +178,11 @@ export default function Dashboard() {
 
           <h3>Season Averages:</h3>
           <ul>
-            <li>Points: {playerStats.seasonAverages?.pts || 0}</li>
-            <li>Rebounds: {playerStats.seasonAverages?.reb || 0}</li>
-            <li>Assists: {playerStats.seasonAverages?.ast || 0}</li>
-            <li>Steals: {playerStats.seasonAverages?.stl || 0}</li>
-            <li>Blocks: {playerStats.seasonAverages?.blk || 0}</li>
+            <li>Points: {playerStats.seasonAverages?.pts ?? 0}</li>
+            <li>Rebounds: {playerStats.seasonAverages?.reb ?? 0}</li>
+            <li>Assists: {playerStats.seasonAverages?.ast ?? 0}</li>
+            <li>Steals: {playerStats.seasonAverages?.stl ?? 0}</li>
+            <li>Blocks: {playerStats.seasonAverages?.blk ?? 0}</li>
           </ul>
         </div>
       )}
