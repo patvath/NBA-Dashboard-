@@ -1,46 +1,108 @@
-import type { NextApiRequest, NextApiResponse } from "next";
+"use client";
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { playerId } = req.query;
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import axios from "axios";
+import ProjectionCard from "../../components/ProjectionCard";
 
-  try {
-    // Fetch player details
-    const playerRes = await fetch(`https://www.balldontlie.io/api/v1/players/${playerId}`);
-    if (!playerRes.ok) {
-      throw new Error(`Failed to fetch player info: ${playerRes.status}`);
-    }
-    const player = await playerRes.json();
+export default function PlayerPage() {
+  const router = useRouter();
+  const { playerId } = router.query;
+  const [playerData, setPlayerData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-    // Determine latest valid NBA season
-    const thisYear = new Date().getFullYear();
-    const currentSeason = new Date().getMonth() >= 9 ? thisYear : thisYear - 1;
+  useEffect(() => {
+    if (!playerId) return;
 
-    // Fetch player’s current season averages
-    const statsRes = await fetch(
-      `https://www.balldontlie.io/api/v1/season_averages?season=${currentSeason}&player_ids[]=${playerId}`
-    );
-    const statsData = await statsRes.json();
+    const fetchPlayerStats = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-    // Safely handle no results
-    const seasonAverages = statsData?.data?.length ? statsData.data[0] : {
-      pts: 0,
-      reb: 0,
-      ast: 0,
-      stl: 0,
-      blk: 0,
+        // Fetch player details
+        const playerResponse = await axios.get(
+          `https://api.balldontlie.io/v1/players/${playerId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.NEXT_PUBLIC_BALLDONTLIE_KEY}`,
+            },
+          }
+        );
+
+        // Fetch season averages
+        const seasonResponse = await axios.get(
+          `https://api.balldontlie.io/v1/season_averages?player_ids[]=${playerId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.NEXT_PUBLIC_BALLDONTLIE_KEY}`,
+            },
+          }
+        );
+
+        setPlayerData({
+          player: playerResponse.data,
+          season: seasonResponse.data.data[0],
+        });
+      } catch (err: any) {
+        console.error("Error fetching player stats:", err);
+        setError("Failed to fetch player data. Try again later.");
+      } finally {
+        setLoading(false);
+      }
     };
 
-    // Return clean data
-    return res.status(200).json({
-      player,
-      seasonAverages,
-    });
-  } catch (error) {
-    console.error("API error fetching player data:", error);
-    return res.status(500).json({
-      error: "Failed to fetch player data",
-      player: null,
-      seasonAverages: null,
-    });
+    fetchPlayerStats();
+  }, [playerId]);
+
+  if (!playerId) {
+    return (
+      <div className="flex justify-center items-center h-screen text-gray-400">
+        <p>Select a player to view their stats.</p>
+      </div>
+    );
   }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen text-gray-400">
+        <p>Loading player stats...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center h-screen text-red-500">
+        <p>{error}</p>
+      </div>
+    );
+  }
+
+  if (!playerData) {
+    return (
+      <div className="flex justify-center items-center h-screen text-gray-400">
+        <p>No data available for this player.</p>
+      </div>
+    );
+  }
+
+  const { player, season } = playerData;
+
+  return (
+    <div className="min-h-screen bg-[#0A0F24] text-white p-8">
+      <h1 className="text-3xl font-bold text-gold-400 mb-4">
+        {player.first_name} {player.last_name}
+      </h1>
+      <p className="text-gray-400 mb-6">
+        Team: {player.team.full_name} | Position: {player.position || "N/A"}
+      </p>
+
+      {season ? (
+        <ProjectionCard data={season} />
+      ) : (
+        <p className="text-gray-500">No season data available.</p>
+      )}
+    </div>
+  );
 }
