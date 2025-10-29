@@ -1,1 +1,0 @@
-// teams API route here
