@@ -12,86 +12,88 @@ export default function Home() {
 
   const apiKey = process.env.NEXT_PUBLIC_BALLDONTLIE_KEY || "";
 
-  // Fetch all teams on load
+  // Utility: universal fetch wrapper that logs everything
+  async function safeFetch(url: string, label: string) {
+    console.log(`🔹 Fetching ${label} → ${url}`);
+    try {
+      const res = await fetch(url, { headers: { Authorization: apiKey } });
+      const json = await res.json();
+      console.log(`✅ ${label} response:`, json);
+      if (!res.ok) throw new Error(`${label} failed: ${res.status}`);
+      return json;
+    } catch (e: any) {
+      console.error(`❌ Error fetching ${label}:`, e.message);
+      throw e;
+    }
+  }
+
+  // Fetch teams
   useEffect(() => {
     async function fetchTeams() {
       try {
-        console.log("Fetching NBA teams...");
-        const res = await fetch("https://api.balldontlie.io/v1/teams", {
-          headers: { Authorization: apiKey },
-        });
-        if (!res.ok) throw new Error(`Teams request failed: ${res.status}`);
-        const json = await res.json();
-        setTeams(json.data);
-        console.log(`✅ Loaded ${json.data.length} NBA teams.`);
-      } catch (e: any) {
-        console.error("❌ Error fetching teams:", e.message);
-        setError("Unable to fetch teams. Please check API key.");
+        const data = await safeFetch(
+          "https://api.balldontlie.io/v1/teams",
+          "Teams"
+        );
+        setTeams(data.data || []);
+      } catch {
+        setError("Failed to load NBA teams (check API key).");
       }
     }
     fetchTeams();
   }, []);
 
-  // Fetch players when a team is selected
+  // Fetch players for selected team
   useEffect(() => {
     if (!selectedTeam) return;
-
     async function fetchPlayers() {
+      setPlayers([]);
+      setPlayerStats(null);
+      setLoading(true);
       try {
-        setPlayers([]);
-        setPlayerStats(null);
-        setLoading(true);
-        const res = await fetch(
+        const data = await safeFetch(
           `https://api.balldontlie.io/v1/players?team_ids[]=${selectedTeam}&per_page=100`,
-          {
-            headers: { Authorization: apiKey },
-          }
+          "Players"
         );
-        const json = await res.json();
-        setPlayers(json.data);
-      } catch (e: any) {
-        console.error("❌ Error fetching players:", e.message);
-        setError("Unable to fetch players for this team.");
+        setPlayers(data.data || []);
+      } catch {
+        setError("Failed to load players for this team.");
       } finally {
         setLoading(false);
       }
     }
-
     fetchPlayers();
   }, [selectedTeam]);
 
-  // Fetch player stats when a player is selected
+  // Fetch player stats when player selected
   useEffect(() => {
     if (!selectedPlayer) return;
 
-    async function fetchStats() {
+    async function fetchPlayerStats() {
       setLoading(true);
+      setError("");
       setPlayerStats(null);
       try {
-        console.log("Fetching player stats...");
-
-        // Try to get season averages
-        const seasonRes = await fetch(
+        // Try season averages first
+        const season = await safeFetch(
           `https://api.balldontlie.io/v1/season_averages?player_ids[]=${selectedPlayer}`,
-          { headers: { Authorization: apiKey } }
+          "Season Averages"
         );
 
-        const seasonData = await seasonRes.json();
-        let stats = seasonData.data?.[0] || null;
+        let stats = season.data?.[0] || null;
 
-        // If no season averages found, try last 10 games
+        // If no season averages → get last 10 games
         if (!stats) {
-          console.log("No season averages found, fetching last 10 games...");
-          const gamesRes = await fetch(
+          console.log("ℹ️ No season averages found, fetching last 10 games...");
+          const games = await safeFetch(
             `https://api.balldontlie.io/v1/stats?player_ids[]=${selectedPlayer}&per_page=10`,
-            { headers: { Authorization: apiKey } }
+            "Recent Games"
           );
-          const gamesData = await gamesRes.json();
-          if (gamesData.data?.length) {
+          if (games.data?.length) {
             const avg = (key: string) =>
               (
-                gamesData.data.reduce((acc: number, g: any) => acc + g[key], 0) /
-                gamesData.data.length
+                games.data.reduce((a: number, g: any) => a + (g[key] || 0), 0) /
+                games.data.length
               ).toFixed(1);
             stats = {
               pts: avg("pts"),
@@ -106,16 +108,21 @@ export default function Home() {
           stats.source = "season_averages";
         }
 
+        if (!stats) {
+          console.warn("⚠️ No stats found for player:", selectedPlayer);
+          setError("No stats found for this player (new season or no data yet).");
+        }
+
         setPlayerStats(stats);
-      } catch (e: any) {
-        console.error("❌ Error fetching player stats:", e.message);
-        setError("Unable to fetch player stats.");
+      } catch (err: any) {
+        console.error("❌ Error in stats fetch pipeline:", err.message);
+        setError("Unable to load player stats. Check logs for details.");
       } finally {
         setLoading(false);
       }
     }
 
-    fetchStats();
+    fetchPlayerStats();
   }, [selectedPlayer]);
 
   return (
