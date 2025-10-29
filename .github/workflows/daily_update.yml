@@ -1,0 +1,35 @@
+name: 🏀 Daily NBA Dashboard Update
+
+on:
+  schedule:
+    - cron: "0 14 * * *"   # 9 AM Eastern (14:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🧩 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: 📦 Install dependencies
+        run: npm install
+
+      - name: 🔄 Fetch latest NBA data
+        env:
+          BALLDONTLIE_API: ${{ secrets.BALLDONTLIE_API }}
+        run: npm run fetch:data
+
+      - name: 💾 Commit updated JSON data
+        run: |
+          git config user.name "NBA Dashboard Bot"
+          git config user.email "bot@pulsr.co.uk"
+          git add public/data/*.json || echo "No data changes"
+          git commit -m "📊 Automated daily data update $(date)" || echo "Nothing to commit"
+          git push
+        continue-on-error: true
