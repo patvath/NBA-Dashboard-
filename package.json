@@ -14,8 +14,7 @@
     "@types/react-dom": "18.2.7",
     "autoprefixer": "10.4.14",
     "axios": "^1.7.3",
-    "framer-motion": "^11.2.6",
-    "@types/framer-motion": "^11.2.0",
+    "framer-motion": "^11.3.0",
     "next": "14.2.0",
     "postcss": "8.4.24",
     "react": "18.2.0",
@@ -27,11 +26,14 @@
     "eslint": "8.44.0",
     "eslint-config-next": "14.2.0"
   },
+  "resolutions": {
+    "@types/framer-motion": "11.2.0"
+  },
   "engines": {
     "node": ">=18.0.0"
   },
   "license": "MIT",
-  "description": "A live, automated NBA Dashboard built with Next.js, TypeScript, Tailwind, and Framer Motion. Displays daily updated player stats, projections, and betting insights.",
+  "description": "Automated NBA Dashboard built with Next.js, Tailwind, and Framer Motion animations.",
   "repository": {
     "type": "git",
     "url": "https://github.com/patvath/NBA-Dashboard-.git"
